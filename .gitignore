@@ -1,0 +1,11 @@
+# .NET 编译产生的垃圾
+bin/
+obj/
+.vs/
+
+# 前端依赖包（千万别传这个！）
+node_modules/
+dist/
+
+# 配置文件
+.env

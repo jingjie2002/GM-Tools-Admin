@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  # 数据库：PostgreSQL
+  db:
+    image: postgres:17
+    container_name: game_admin_db
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: game_admin
+    ports:
+      - "15432:5432"
+
+  # 缓存：Redis 7.x with persistence
+  cache:
+    image: redis:7-alpine
+    container_name: game_admin_redis
+    restart: always
+    command: redis-server --requirepass redis123 --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # 日志可视化：Seq
+  seq:
+    image: datalust/seq:latest
+    container_name: game_admin_seq
+    restart: always
+    environment:
+      ACCEPT_EULA: Y
+    ports:
+      - "15341:80"
+
+volumes:
+  redis_data:
