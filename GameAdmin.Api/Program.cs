@@ -54,18 +54,44 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("SignalRPolicy", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")  // Vite dev server
+        policy.WithOrigins(
+                "http://localhost:5173",    // Vite dev server (localhost)
+                "http://127.0.0.1:5173"     // Vite dev server (loopback IP)
+              )
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();  // SignalR 必需
     });
 });
 
-// 注册 Redis
+// 注册 Redis (Fail-Fast: 连接失败则终止启动)
 var redisConnectionString = builder.Configuration.GetConnectionString("Redis")
     ?? throw new InvalidOperationException("Redis connection string is not configured");
-builder.Services.AddSingleton<IConnectionMultiplexer>(
-    ConnectionMultiplexer.Connect(redisConnectionString));
+
+Console.WriteLine(">>> [探针] 正在连接 Redis...");
+IConnectionMultiplexer redisConnection;
+try
+{
+    redisConnection = ConnectionMultiplexer.Connect(redisConnectionString);
+    
+    // 验证连接有效性
+    if (!redisConnection.IsConnected)
+    {
+        throw new InvalidOperationException("Redis 连接建立后状态异常：IsConnected = false");
+    }
+    
+    // PING 测试
+    var db = redisConnection.GetDatabase();
+    var pingResult = db.Ping();
+    Console.WriteLine($">>> [探针] Redis 连接成功！PING 延迟: {pingResult.TotalMilliseconds:F2}ms");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[FATAL] >>> Redis 连接失败，应用无法启动: {ex.Message}");
+    throw new InvalidOperationException($"Redis 连接失败（Fail-Fast）: {ex.Message}", ex);
+}
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(redisConnection);
 builder.Services.AddScoped<IRedisService, RedisService>();
 
 // 注册应用服务

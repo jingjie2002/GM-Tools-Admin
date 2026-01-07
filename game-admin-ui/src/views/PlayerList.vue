@@ -201,6 +201,7 @@ import { searchPlayers, giveItem, unbanPlayer, batchBan, deductGoldWithAuth } fr
 import type { Player, GiveItemRequest } from '@/api/gm'
 import type { ElTable } from 'element-plus'
 import { signalrEvents, SignalREvents } from '@/utils/signalr'
+import type { PlayerStatusChangedData, BatchJobFinishedData } from '@/utils/signalr'
 
 const router = useRouter()
 
@@ -456,30 +457,27 @@ const onStatsUpdated = () => {
   fetchPlayers()
 }
 
-const onPlayerStatusChanged = (data: unknown) => {
-  const d = data as { PlayerId?: string, Status?: string }
-  console.log('[PlayerList] Player status changed:', d.PlayerId, d.Status)
+const onPlayerStatusChanged = (data: PlayerStatusChangedData) => {
+  console.log('[PlayerList] Player status changed:', data.PlayerId, data.Status)
   
   // 局部更新：找到对应玩家并更新状态，实现视觉即时变红
-  if (d.PlayerId && d.Status === 'Banned') {
-    const player = players.value.find(p => p.id === d.PlayerId)
+  if (data.PlayerId && data.Status === 'Banned') {
+    const player = players.value.find(p => p.id === data.PlayerId)
     if (player) {
       player.isBanned = true
-      console.log('[PlayerList] Locally updated player', d.PlayerId, 'to banned')
+      console.log('[PlayerList] Locally updated player', data.PlayerId, 'to banned')
     }
   }
 }
 
-const onBatchJobFinished = (data: unknown) => {
-  const d = data as { BatchId?: string, SuccessCount?: number, FailedCount?: number }
-  
+const onBatchJobFinished = (data: BatchJobFinishedData) => {
   // 关闭处理中提示
   batchBanning.value = false
   
   ElNotification({
     title: '批量封禁完成',
-    message: `批次 ${d.BatchId}: 成功 ${d.SuccessCount}, 失败 ${d.FailedCount}`,
-    type: d.FailedCount ? 'warning' : 'success',
+    message: `批次 ${data.BatchId}: 成功 ${data.SuccessCount}, 失败 ${data.FailedCount}`,
+    type: data.FailedCount ? 'warning' : 'success',
     duration: 5000
   })
   

@@ -4,26 +4,9 @@ import * as signalR from '@microsoft/signalr'
 
 const HUB_URL = 'http://localhost:5201/hubs/gm'
 
-// 简单事件总线
-type EventCallback = (...args: unknown[]) => void
-const eventBus = new Map<string, Set<EventCallback>>()
+// ==================== 强类型事件定义 ====================
 
-export const signalrEvents = {
-  on(event: string, callback: EventCallback) {
-    if (!eventBus.has(event)) {
-      eventBus.set(event, new Set())
-    }
-    eventBus.get(event)!.add(callback)
-  },
-  off(event: string, callback: EventCallback) {
-    eventBus.get(event)?.delete(callback)
-  },
-  emit(event: string, ...args: unknown[]) {
-    eventBus.get(event)?.forEach(cb => cb(...args))
-  }
-}
-
-// 事件名称常量
+/** 事件名称常量 */
 export const SignalREvents = {
   STATS_UPDATED: 'StatsUpdated',
   NEW_PENDING_AUDIT: 'NewPendingAudit',
@@ -31,6 +14,67 @@ export const SignalREvents = {
   BATCH_JOB_FINISHED: 'BatchJobFinished',
   CONNECTION_STATE_CHANGED: 'ConnectionStateChanged'
 } as const
+
+/** 待审批事件数据 */
+export interface NewPendingAuditData {
+  operatorName: string
+  playerId: string
+  amount: number
+}
+
+/** 玩家状态变更事件数据 */
+export interface PlayerStatusChangedData {
+  PlayerId: string
+  Status: string
+  BatchId?: string
+}
+
+/** 批量任务完成事件数据 */
+export interface BatchJobFinishedData {
+  BatchId: string
+  TotalCount: number
+  SuccessCount: number
+  FailedCount: number
+}
+
+/** 连接状态类型 */
+export type ConnectionState = 'connected' | 'disconnected' | 'reconnecting' | 'failed'
+
+/** 事件回调类型映射 - 核心类型契约 */
+export interface EventCallbackMap {
+  [SignalREvents.STATS_UPDATED]: () => void
+  [SignalREvents.NEW_PENDING_AUDIT]: (data: NewPendingAuditData) => void
+  [SignalREvents.PLAYER_STATUS_CHANGED]: (data: PlayerStatusChangedData) => void
+  [SignalREvents.BATCH_JOB_FINISHED]: (data: BatchJobFinishedData) => void
+  [SignalREvents.CONNECTION_STATE_CHANGED]: (state: ConnectionState) => void
+}
+
+/** 事件名称类型 */
+export type SignalREventName = keyof EventCallbackMap
+
+// ==================== 强类型事件总线 ====================
+
+const eventBus = new Map<string, Set<(...args: unknown[]) => void>>()
+
+export const signalrEvents = {
+  /** 订阅事件（强类型） */
+  on<K extends SignalREventName>(event: K, callback: EventCallbackMap[K]): void {
+    if (!eventBus.has(event)) {
+      eventBus.set(event, new Set())
+    }
+    eventBus.get(event)!.add(callback as (...args: unknown[]) => void)
+  },
+
+  /** 取消订阅（强类型） */
+  off<K extends SignalREventName>(event: K, callback: EventCallbackMap[K]): void {
+    eventBus.get(event)?.delete(callback as (...args: unknown[]) => void)
+  },
+
+  /** 触发事件（内部使用） */
+  emit<K extends SignalREventName>(event: K, ...args: Parameters<EventCallbackMap[K]>): void {
+    eventBus.get(event)?.forEach(cb => cb(...args))
+  }
+}
 
 let connection: signalR.HubConnection | null = null
 const MAX_RECONNECT_ATTEMPTS = 5
@@ -80,17 +124,17 @@ export async function initSignalR(): Promise<void> {
 
   connection.on('NewPendingAudit', (data: unknown) => {
     console.log('[SignalR] Received: NewPendingAudit', data)
-    signalrEvents.emit(SignalREvents.NEW_PENDING_AUDIT, data)
+    signalrEvents.emit(SignalREvents.NEW_PENDING_AUDIT, data as NewPendingAuditData)
   })
 
   connection.on('PlayerStatusChanged', (data: unknown) => {
     console.log('[SignalR] Received: PlayerStatusChanged', data)
-    signalrEvents.emit(SignalREvents.PLAYER_STATUS_CHANGED, data)
+    signalrEvents.emit(SignalREvents.PLAYER_STATUS_CHANGED, data as PlayerStatusChangedData)
   })
 
   connection.on('BatchJobFinished', (data: unknown) => {
     console.log('[SignalR] Received: BatchJobFinished', data)
-    signalrEvents.emit(SignalREvents.BATCH_JOB_FINISHED, data)
+    signalrEvents.emit(SignalREvents.BATCH_JOB_FINISHED, data as BatchJobFinishedData)
   })
 
   // 连接状态变化

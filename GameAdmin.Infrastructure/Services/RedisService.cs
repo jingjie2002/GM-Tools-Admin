@@ -65,11 +65,11 @@ public class RedisService : IRedisService
         _connection = connection;
         _logger = logger;
 
-        // 强制连接检查
+        // 强制连接检查（仅日志，实际 Fail-Fast 在 Program.cs 处理）
         if (!_connection.IsConnected)
         {
-            Console.WriteLine("[ERROR] >>> Redis 连接失败！请检查连接字符串和密码！");
-            _logger.LogError("Redis connection failed! IsConnected: {IsConnected}", _connection.IsConnected);
+            Console.WriteLine("[WARN] >>> Redis 初始连接未成功，将在首次操作时重试");
+            _logger.LogWarning("Redis initial connection not established. IsConnected: {IsConnected}", _connection.IsConnected);
         }
         else
         {
@@ -80,6 +80,18 @@ public class RedisService : IRedisService
 
         _db = connection.GetDatabase();
         _logger.LogInformation("Redis database obtained. Database: {Database}", _db.Database);
+    }
+
+    /// <summary>
+    /// 检查 Redis 连接状态，未连接时抛出异常
+    /// </summary>
+    private void EnsureConnected()
+    {
+        if (!_connection.IsConnected)
+        {
+            _logger.LogError("Redis connection is not available!");
+            throw new InvalidOperationException("Redis 连接不可用，请检查 Redis 服务状态");
+        }
     }
 
     /// <inheritdoc />
@@ -99,6 +111,9 @@ public class RedisService : IRedisService
     /// <inheritdoc />
     public async Task<bool> AcquireLockAsync(string lockKey, string lockValue, TimeSpan expiry)
     {
+        // 快速短路：未连接时立即失败
+        EnsureConnected();
+
         var key = $"{LockPrefix}{lockKey}";
 
         _logger.LogInformation("[探针] Redis AcquireLock - Key: {Key}, Value: {Value}, Expiry: {Expiry}s",

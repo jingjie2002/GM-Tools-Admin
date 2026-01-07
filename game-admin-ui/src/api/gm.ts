@@ -5,7 +5,7 @@ import request from '@/utils/request'
 /** Dashboard 统计数据 */
 export interface StatsResponse {
   onlineCount: number
-  totalGoldIssued: number
+  totalGoldIssued: string  // 改为 string 以防止大数精度丢失
   pendingCount: number
   bannedCount: number
   topAdmins: TopAdmin[]
@@ -14,7 +14,7 @@ export interface StatsResponse {
 export interface TopAdmin {
   adminId: string
   adminName: string
-  totalAmount: number
+  totalAmount: string  // 改为 string 以防止大数精度丢失
   operationCount: number
 }
 
@@ -23,7 +23,7 @@ export interface Player {
   id: string
   nickname: string
   level: number
-  gold: number
+  gold: string  // 改为 string 以防止大数精度丢失
   isBanned: boolean
   createdAt: string
 }

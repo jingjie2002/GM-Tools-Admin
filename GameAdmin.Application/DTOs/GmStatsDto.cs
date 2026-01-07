@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace GameAdmin.Application.DTOs;
 
 /// <summary>
@@ -10,8 +12,9 @@ public record GmStatsDto(
     int OnlineCount,
 
     /// <summary>
-    /// 过去24小时内发放的总金币数
+    /// 过去24小时内发放的总金币数（字符串序列化防止精度丢失）
     /// </summary>
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)]
     long TotalGoldIssued,
 
     /// <summary>
@@ -45,8 +48,9 @@ public record TopAdminDto(
     string AdminName,
 
     /// <summary>
-    /// 发奖总额
+    /// 发奖总额（字符串序列化防止精度丢失）
     /// </summary>
+    [property: JsonNumberHandling(JsonNumberHandling.WriteAsString)]
     long TotalAmount,
 
     /// <summary>

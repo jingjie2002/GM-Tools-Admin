@@ -115,6 +115,7 @@ import {
 import { getStatsSummary } from '@/api/gm'
 import type { StatsResponse } from '@/api/gm'
 import { initSignalR, disconnectSignalR, signalrEvents, SignalREvents } from '@/utils/signalr'
+import type { NewPendingAuditData, ConnectionState } from '@/utils/signalr'
 
 const router = useRouter()
 const username = ref(localStorage.getItem('username') || 'Admin')
@@ -123,7 +124,7 @@ const signalRConnected = ref(false)
 
 const stats = ref<StatsResponse>({
   onlineCount: 0,
-  totalGoldIssued: 0,
+  totalGoldIssued: '0',  // 字符串类型
   pendingCount: 0,
   bannedCount: 0,
   topAdmins: []
@@ -133,13 +134,15 @@ const formatNumber = (num: number): string => {
   return num.toLocaleString('zh-CN')
 }
 
-const formatGold = (amount: number): string => {
-  if (amount >= 1000000) {
-    return `¥${(amount / 1000000).toFixed(1)}M`
-  } else if (amount >= 1000) {
-    return `¥${(amount / 1000).toFixed(1)}K`
+const formatGold = (amount: string | number): string => {
+  const num = typeof amount === 'string' ? parseFloat(amount) : amount
+  if (isNaN(num)) return '¥0'
+  if (num >= 1000000) {
+    return `¥${(num / 1000000).toFixed(1)}M`
+  } else if (num >= 1000) {
+    return `¥${(num / 1000).toFixed(1)}K`
   }
-  return `¥${amount}`
+  return `¥${num}`
 }
 
 const fetchStats = async () => {
@@ -149,7 +152,7 @@ const fetchStats = async () => {
     // 防御性赋值：确保所有字段有默认值
     stats.value = {
       onlineCount: result?.onlineCount ?? 0,
-      totalGoldIssued: result?.totalGoldIssued ?? 0,
+      totalGoldIssued: result?.totalGoldIssued ?? '0',
       pendingCount: result?.pendingCount ?? 0,
       bannedCount: result?.bannedCount ?? 0,
       topAdmins: Array.isArray(result?.topAdmins) ? result.topAdmins : []
@@ -169,7 +172,7 @@ const onStatsUpdated = () => {
   fetchStats()
 }
 
-const onNewPendingAudit = (data: any) => {
+const onNewPendingAudit = (data: NewPendingAuditData) => {
   ElNotification({
     title: '新待审批申请',
     message: `${data.operatorName} 申请发放 ${data.amount.toLocaleString()} 金币`,
@@ -179,7 +182,7 @@ const onNewPendingAudit = (data: any) => {
   fetchStats()
 }
 
-const onConnectionStateChanged = (state: string) => {
+const onConnectionStateChanged = (state: ConnectionState) => {
   signalRConnected.value = state === 'connected'
   if (state === 'connected') {
     console.log('[Dashboard] SignalR connected')
