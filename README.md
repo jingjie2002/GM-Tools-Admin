@@ -1,138 +1,138 @@
-# 🛡️ GM-Tools-Admin
+# GM-Tools-Admin
 
-> **基于 .NET 10 与 Vue 3 的硬核游戏后台管理系统**  
-> *Hardcore Game Operation Management System based on .NET 10 & Vue 3*
+GM-Tools-Admin 是一个基于 ASP.NET Core 和 Vue 3 的游戏后台管理系统示例。项目包含玩家管理、管理员登录、封禁操作、审计日志、SignalR 状态推送和前端管理页面。
 
-[![Using .NET 10](https://img.shields.io/badge/.NET-10.0-purple.svg)](https://dotnet.microsoft.com/)
-[![Vue 3](https://img.shields.io/badge/Vue-3.5-green.svg)](https://vuejs.org/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
+后端采用分层结构组织 API、应用接口、领域模型和基础设施实现；前端使用 Vue 3、Vite 和 Element Plus 构建管理界面。
 
-## 📖 项目简介 (Introduction)
+## 功能
 
-**GM-Tools-Admin** 是为高并发游戏场景设计的生产级运营管理平台。它不仅仅是一个 CRUD 后台，更是一个集成了**资产安全管控**、**大规模异步指令调度**及**实时状态同步**的现代化解决方案。
+- 管理员登录与 JWT 鉴权。
+- 玩家列表、详情和分页查询。
+- 玩家金币、道具和封禁相关操作。
+- 二次确认过滤器，用于敏感接口校验。
+- 操作日志记录与查询。
+- SignalR 推送 GM 操作状态。
+- PostgreSQL 数据持久化。
+- Redis 服务封装。
+- 前端登录页、仪表盘、玩家列表和审计列表。
 
-核心定位：
-*   🔒 **资产安全**: 解决游戏运营中最敏感的“物品发放”与“货币扣除”安全问题，杜绝超卖与竞态条件。
-*   ⚡ **高并发调度**: 优雅处理成千上万的玩家封禁/解封指令，保护核心数据库不受冲击。
-*   📡 **实时反馈**: 打破 HTTP 请求响应的界限，实现操作结果的毫秒级 WebSocket 推送。
+## 技术栈
 
----
+后端：
 
-## 🛠️ 技术栈看板 (Tech Stack)
+- .NET 10
+- ASP.NET Core
+- Entity Framework Core
+- PostgreSQL
+- Redis
+- SignalR
+- FluentValidation
+- Serilog
+- MiniExcel
 
-### Backend (Core)
-*   **Running Runtime**: [.NET 10 (Preview)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) - 探索 C# 13 的极致性能。
-*   **ORM**: Entity Framework Core 10 - 结合 PostgreSQL 17 的强大能力。
-*   **Infrastructure**: StackExchange.Redis - 分布式锁与高速缓存。
-*   **Real-time**: ASP.NET Core SignalR - 高性能 WebSocket 通讯。
+前端：
 
-### High Performance
-*   **System.Threading.Channels**: 内存级生产者-消费者队列，实现 Backpressure (背压) 机制。
-*   **MiniExcel**: 基于流式 IO 的高性能 Excel 处理组件，内存占用极低。
+- Vue 3
+- TypeScript
+- Vite
+- Vue Router
+- Element Plus
+- Axios
+- SignalR Client
 
-### Frontend
-*   **Framework**: Vue 3.5 (Composition API) + TypeScript 5.9.
-*   **UI System**: Element Plus 2.13 - 深度定制的暗黑模式 (Dark Mode)。
-*   **Tooling**: Vite 7.2 - 极速冷启动与热更新 (HMR)。
+## 目录结构
 
----
-
-## 🔥 核心硬核特性 (Hardcore Features)
-
-### 1. 🛡️ 分布式锁与原子性 (Distributed Lock & Atomicity)
-在涉及玩家金币扣除 (`DeductGold`) 的高危操作中，我们构建了类似金融系统的双重防线：
-*   **Layer 1 (Redis)**: 使用 `StackExchange.Redis` 实现分布式互斥锁 (`SET key val NX EX`)，确保同一玩家同一时间只能处理一个请求。
-*   **Layer 2 (DB Optimistic Locking)**: 利用 SQL 原子更新语句 `UPDATE players SET gold = gold - @amount WHERE id = @id AND gold >= @amount`。即使并发穿透了 Redis 锁，数据库层面的 **Condition Update** 也能保证余额**永不超卖**。
-
-### 2. 🌊 生产者-消费者限流队列 (Rate-Limited Queue)
-面对突发的“批量封禁”需求（如 10万+ 违规账号），直接写入数据库会导致连接池耗尽。
-*   **BanQueueService**: 采用 `System.Threading.Channels.Channel<T>` 构建有界队列。
-*   **Rate Limiting**: 消费者线程被限制为 **50 TPS**，通过 `await Task.Delay` 平滑流量削峰。
-*   **Backpressure**: 当队列满时 (`BoundedChannelFullMode.Wait`)，自动阻塞 API 生产者，防止内存溢出 (OOM)。
-
-### 3. 🔐 AOP 切面安全防线 (Aspect-Oriented Security)
-敏感操作（如扣除金币）不应依赖前端验证。我们通过自定义 `ActionFilter` 实现“插拔式”安全增强：
-*   **[RequireSecondaryAuth]**: 任何标记此 Attribute 的 Controller Action，请求头中必须包含有效的 `X-Secondary-Password`。
-*   **Short-circuiting**: 验证失败直接返回 401，根本不会进入业务逻辑层，实现关注点分离。
-
-### 4. 📊 流式审计系统 (Streaming Audit)
-告别 `DataTable` 整表加载导致的内存崩溃。
-*   **Memory Efficiency**: 利用 `IAsyncEnumerable<T>` 和迭代器模式，数据从数据库游标 (Cursor) 读出后直接流入网络响应流 (Network Stream)。
-*   **Zero-Copy**: 结合 MiniExcel 的流式写入能力，理论上支持无限行数的日志导出，服务器内存占用恒定 (O(1))。
-
----
-
-## ⚡ 快速开始 (Quick Start)
-
-### 后端 (Backend)
-
-1.  **环境准备**: 确保已安装 .NET 10 SDK、PostgreSQL 和 Redis。
-2.  **配置数据库**: 修改 `appsettings.json` 中的 `ConnectionStrings:DefaultConnection` 和 `Redis`。
-3.  **应用迁移**:
-    ```bash
-    cd GameAdmin.Infrastructure
-    dotnet ef database update --startup-project ../GameAdmin.Api
-    ```
-4.  **启动服务**:
-    ```bash
-    cd GameAdmin.Api
-    dotnet run
-    ```
-
-### 前端 (Frontend)
-
-1.  **安装依赖**:
-    ```bash
-    cd game-admin-ui
-    npm install
-    ```
-2.  **启动开发服**:
-    ```bash
-    npm run dev
-    ```
-
----
-
-## 🏛️ 架构示意图 (Architecture)
-
-项目严格遵循 **Clean Architecture** (整洁架构) 原则，实现关注点分离：
-
-```mermaid
-graph TD
-    API[GameAdmin.Api] --> Application
-    API --> Infrastructure
-    Infrastructure --> Application
-    Infrastructure --> Domain
-    Application --> Domain
-
-    subgraph Core Logic
-    Domain[Domain Entities]
-    Application[Application Interfaces & DTOs]
-    end
-
-    subgraph Implementation
-    Infrastructure[EF Core & Redis Implementation]
-    end
-
-    subgraph Entry Point
-    API[Controllers, Hubs & Middlewares]
-    end
+```text
+GameAdmin.Api/             HTTP API、Hub、中间件和过滤器
+GameAdmin.Application/     DTO 和服务接口
+GameAdmin.Domain/          领域实体
+GameAdmin.Infrastructure/  EF Core、Redis 和业务服务实现
+game-admin-ui/             Vue 前端工程
+docker-compose.yml         PostgreSQL、Redis 和 Seq 本地依赖
+GameAdmin.sln              .NET 解决方案
 ```
 
-*   **API**: 仅负责 HTTP/WebSocket 协议处理、全局异常捕获。
-*   **Application**: 纯净的业务规则定义，不依赖任何数据库具体实现。
-*   **Infrastructure**: 所有的“脏活累活”（SQL读写、Redis操作、第三方API）都在这里，实现了 Interface。
-*   **Domain**: 核心领域模型（Player, GmOperationLog），POCO 对象，无依赖。
+## 本地运行
 
----
+### 1. 启动依赖
 
-## 🚀 未来演进 (Future Roadmap)
+```powershell
+docker compose up -d db cache seq
+```
 
-*   [ ] **C++ Native Module**: 计划引入自研 C++ 扩展 (`.dll / .so`) 接管高频日志文件的解析与处理，进一步压榨 CPU 性能。
-*   [ ] **gRPC Support**: 为微服务架构准备，提供高性能的内部 RPC 接口。
-*   [ ] **AI Copilot Integration**: 集成 LLM 辅助管理员进行异常数据分析。
+默认依赖端口：
 
----
+| 服务 | 地址 |
+|---|---|
+| PostgreSQL | `localhost:15432` |
+| Redis | `localhost:6379` |
+| Seq | `http://localhost:15341` |
 
-Managed with ❤️ by [Your Organization]
+### 2. 启动后端
+
+```powershell
+dotnet restore GameAdmin.sln
+dotnet ef database update --project GameAdmin.Infrastructure --startup-project GameAdmin.Api
+dotnet run --project GameAdmin.Api
+```
+
+后端配置位于：
+
+```text
+GameAdmin.Api/appsettings.json
+GameAdmin.Api/appsettings.Development.json
+```
+
+### 3. 启动前端
+
+```powershell
+cd game-admin-ui
+npm install
+npm run dev
+```
+
+前端开发服务地址以 Vite 输出为准。
+
+## 后端模块
+
+| 模块 | 说明 |
+|---|---|
+| `GameAdmin.Api` | Controller、SignalR Hub、Filter 和中间件 |
+| `GameAdmin.Application` | DTO、分页结果和服务接口 |
+| `GameAdmin.Domain` | 玩家、管理员、权限和操作日志实体 |
+| `GameAdmin.Infrastructure` | EF Core DbContext、迁移、Redis 和业务服务 |
+
+## 前端模块
+
+| 目录 | 说明 |
+|---|---|
+| `src/views` | 页面组件 |
+| `src/api` | HTTP 请求封装 |
+| `src/router` | 路由配置 |
+| `src/utils` | 请求与 SignalR 工具 |
+
+## 验证
+
+后端构建：
+
+```powershell
+dotnet build GameAdmin.sln
+```
+
+前端构建：
+
+```powershell
+cd game-admin-ui
+npm run build
+```
+
+## 当前限制
+
+- 默认配置面向本地开发，生产环境需要修改 JWT 密钥、数据库密码和 CORS 配置。
+- `appsettings.json` 中的默认账号和连接信息不应直接用于生产环境。
+- 当前仓库没有提供完整自动化测试说明。
+- 部署到服务器前需要补充环境变量、日志、数据库迁移和静态资源发布流程。
+
+## License
+
+MIT
